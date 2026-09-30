@@ -6,6 +6,12 @@ It does not modify persisted session history. Assistant final answers, system me
 
 Each outbound model request that has reasoning removed adds a visible `reasoning-pruner` status entry showing how many historical reasoning blocks and estimated tokens were omitted.
 
+## Purpose
+
+This plugin is for reasoning models running in local setups, with tight context windows. The thinking can be extremely verbose (e.g. for Qwen family models). Retaining every completed reasoning block rapidly consumes the available context. That leaves less room for the current turn's reasoning and answer, or forces the backend to truncate useful history.
+
+Completed reasoning is usually lower-value than the conversation record it produced. The plugin retains user messages, assistant final answers, tool calls and results, and attachments while removing old scratchpad reasoning from the outbound request. This preserves the useful record of the conversation and frees context for the active turn.
+
 ## Compatibility
 
 Developed and verified with `@deepseek-ai/dsh` `0.2.0-rc.2`.
@@ -57,6 +63,30 @@ user 3
 ```
 
 The plugin only handles frozen, session-backed DSH agent-loop requests. It bypasses explicit auxiliary requests such as compaction and session-title generation.
+
+## Cache implications
+
+Pruning changes a request in the middle of its history, so the next request is not a strict append of the previous request. Given a previous request containing:
+
+```text
+system
+user A
+assistant reasoning A
+assistant answer A
+```
+
+and a later pruned request:
+
+```text
+system
+user A
+assistant answer A
+user B
+```
+
+a prefix/KV cache can reuse the exact common prefix through `system` and `user A`, provided that the backend supports it and the prefix satisfies its cache length and lifetime requirements. It cannot reuse the old cached sequence from `assistant reasoning A` onward, because the token sequence diverges there.
+
+For the intended local-LLM use case, context capacity takes priority over maximizing cache reuse. The cache behavior is backend-specific and an optimization rather than a guarantee; pruning prevents verbose historical reasoning from repeatedly occupying the limited context window.
 
 ## Configuration
 
