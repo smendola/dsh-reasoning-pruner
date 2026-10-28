@@ -7,7 +7,8 @@ export const name = 'reasoning-pruner';
 export const inject = ['llm', 'sessions', 'tokenMeter'];
 
 function isConversationRequest(options) {
-  // dsh-agent-loop requests are frozen, session-backed, and have no auxiliary purpose.
+  // dsh-agent-loop invariant: its request envelope and messages are frozen and
+  // carry a session ID. One-shot/title requests use system rather than this form.
   return options.sessionId !== undefined
     && options.system === undefined
     && options.purpose === undefined
@@ -68,6 +69,7 @@ export function pruneHistoricalReasoning(messages) {
     }
 
     changed = true;
+    // An assistant message containing only historical reasoning has no provider-visible remainder.
     if (content.length > 0) pruned.push({ ...message, content });
   }
 
